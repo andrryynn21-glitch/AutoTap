@@ -8,14 +8,31 @@
  * - Embed  : URL /player/ atau /embed/ yang sudah jadi dipakai langsung.
  */
 
-const VIDEO_RE = /\/video\/(\d{5,})/;
+const VIDEO_RE = /\/(?:video|photo)\/(\d{5,})/;
 const URL_HANDLE_RE = /tiktok\.com\/@([A-Za-z0-9._]{2,24})/i;
 const HANDLE_RE = /^@?([A-Za-z0-9._]{2,24})$/;
 const EMBED_RE = /tiktok\.com\/(player|embed)\//i;
 const LIVE_RE = /\/live\b/i;
+const SHORT_HOST_RE = /^(vt|vm)\.tiktok\.com$/i;
 
 function ensureProtocol(input) {
   return /^https?:\/\//i.test(input) ? input : `https://${input.replace(/^\/+/, '')}`;
+}
+
+/** Deteksi link pendek TikTok (vt.tiktok.com / vm.tiktok.com / tiktok.com/t/...). */
+export function isShortTikTokLink(input) {
+  const raw = String(input ?? '').trim();
+  if (!raw) return false;
+
+  let url;
+  try {
+    url = new URL(ensureProtocol(raw));
+  } catch {
+    return false;
+  }
+
+  if (!/(^|\.)tiktok\.com$/i.test(url.hostname)) return false;
+  return SHORT_HOST_RE.test(url.hostname) || url.pathname.startsWith('/t/');
 }
 
 function videoResult(postId, sourceUrl) {
@@ -25,7 +42,7 @@ function videoResult(postId, sourceUrl) {
     input: sourceUrl,
     embedUrl: `https://www.tiktok.com/player/v1/${postId}?autoplay=1&loop=1&music_info=1&description=1`,
     sourceUrl,
-    label: `Video TikTok · ${postId}`,
+    label: `TikTok · ${postId}`,
     notes: ['Embed resmi TikTok Player v1 (autoplay + loop aktif).'],
   };
 }
@@ -90,6 +107,20 @@ export function resolveTikTokEmbed(rawInput) {
     const handleMatch = url.match(URL_HANDLE_RE);
     if (handleMatch) return liveResult(handleMatch[1], url);
 
+    if (isShortTikTokLink(url)) {
+      return {
+        ok: false,
+        kind: 'short-link',
+        input,
+        embedUrl: null,
+        sourceUrl: url,
+        label: 'Link pendek',
+        notes: [
+          'Ini link pendek TikTok (vt./vm.). Tekan "Muat" untuk membukanya otomatis — server mengikuti redirect ke URL lengkap.',
+        ],
+      };
+    }
+
     return {
       ok: false,
       kind: 'unsupported',
@@ -118,4 +149,44 @@ export function resolveTikTokEmbed(rawInput) {
     label: '',
     notes: ['Format tidak dikenali. Tempel link TikTok atau username @akun.'],
   };
+}
+
+/**
+ * Perluas link pendek TikTok menjadi URL lengkap via endpoint /api/resolve
+ * (serverless di Vercel; middleware Vite saat dev/preview).
+ * Browser tidak bisa mengikuti redirect vt.tiktok.com sendiri karena CORS.
+ *
+ * @returns {Promise<string>} URL lengkap hasil ekspansi
+ * @throws {Error} pesan ramah untuk ditampilkan di UI
+ */
+export async function resolveShortTikTokLink(input) {
+  const raw = String(input ?? '').trim();
+  const withProto = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+
+  let response;
+  try {
+    response = await fetch(`/api/resolve?url=${encodeURIComponent(withProto)}`, {
+      headers: { accept: 'application/json' },
+    });
+  } catch {
+    throw new Error(
+      'Endpoint /api/resolve tidak tersedia (butuh deploy Vercel atau dev server). Buka link di TikTok lalu salin URL lengkap dari address bar.',
+    );
+  }
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    /* bukan JSON — mis. 404 HTML pada hosting statis */
+  }
+
+  if (!response.ok || !data?.ok || !data?.url) {
+    throw new Error(
+      data?.error ||
+        'Link pendek tidak bisa dibuka otomatis. Buka di TikTok lalu salin URL lengkap (contoh: tiktok.com/@user/video/123...).',
+    );
+  }
+
+  return data.url;
 }

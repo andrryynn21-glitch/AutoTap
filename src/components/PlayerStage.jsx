@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Chip, SectionCard, Segmented } from './ui.jsx';
 import { DemoSurface } from './DemoSurface.jsx';
 import { TapLayer } from './TapLayer.jsx';
+import { isShortTikTokLink, resolveShortTikTokLink } from '../lib/tiktok.js';
 
 /**
  * PlayerStage — wadah "web view" TikTok + overlay target pointer.
@@ -26,15 +27,39 @@ export function PlayerStage({
   running,
 }) {
   const [draft, setDraft] = useState(input);
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState(null);
 
   useEffect(() => {
     setDraft(input);
   }, [input]);
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
-    onInputChange(draft.trim());
-    onModeChange('embed');
+    const value = draft.trim();
+    if (!value) return;
+    setResolveError(null);
+
+    // Link pendek (vt./vm./t/) diperluas dulu via /api/resolve supaya menjadi URL lengkap.
+    if (!isShortTikTokLink(value)) {
+      onInputChange(value);
+      onModeChange('embed');
+      return;
+    }
+
+    setResolving(true);
+    try {
+      const expanded = await resolveShortTikTokLink(value);
+      setDraft(expanded);
+      onInputChange(expanded);
+      onModeChange('embed');
+    } catch (error) {
+      setResolveError(error.message);
+      onInputChange(value);
+      onModeChange('embed');
+    } finally {
+      setResolving(false);
+    }
   };
 
   const showFrame = mode === 'embed' && resolved.ok && resolved.embedUrl;
@@ -68,9 +93,10 @@ export function PlayerStage({
         />
         <button
           type="submit"
-          className="shrink-0 rounded-lg border border-tik-cyan/40 bg-tik-cyan/10 px-3.5 py-2 text-xs font-bold text-tik-cyan transition-colors hover:bg-tik-cyan/20"
+          disabled={resolving}
+          className="shrink-0 rounded-lg border border-tik-cyan/40 bg-tik-cyan/10 px-3.5 py-2 text-xs font-bold text-tik-cyan transition-colors hover:bg-tik-cyan/20 disabled:cursor-wait disabled:opacity-60"
         >
-          Muat
+          {resolving ? 'Membuka…' : 'Muat'}
         </button>
         {resolved.sourceUrl && (
           <a
@@ -84,9 +110,20 @@ export function PlayerStage({
         )}
       </form>
 
+      {resolveError && (
+        <p className="mt-2 rounded-xl border border-tik-pink/40 bg-tik-pink/10 px-3 py-2 text-[11px] leading-relaxed text-tik-pink">
+          {resolveError}
+        </p>
+      )}
+
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {mode === 'embed' && resolved.ok && <Chip tone="green">Terhubung · {resolved.label}</Chip>}
-        {mode === 'embed' && !resolved.ok && <Chip tone="amber">Menunggu link valid</Chip>}
+        {mode === 'embed' && resolved.kind === 'short-link' && (
+          <Chip tone="cyan">Link pendek terdeteksi — tekan Muat untuk membuka</Chip>
+        )}
+        {mode === 'embed' && !resolved.ok && resolved.kind !== 'short-link' && (
+          <Chip tone="amber">Menunggu link valid</Chip>
+        )}
         {mode === 'demo' && <Chip tone="cyan">Demo Mode — engine siap diuji</Chip>}
         {resolved.sourceUrl && (
           <a
@@ -109,6 +146,7 @@ export function PlayerStage({
         >
           {showFrame ? (
             <iframe
+              key={resolved.embedUrl}
               title="TikTok Player"
               src={resolved.embedUrl}
               className="absolute inset-0 h-full w-full border-0 bg-black"

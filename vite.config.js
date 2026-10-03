@@ -2,6 +2,42 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { resolveTikTokUrl } from './server/resolveTikTokUrl.js';
+
+/**
+ * Middleware dev & preview server untuk /api/resolve (link pendek TikTok).
+ * Di production Vercel, endpoint yang sama ditangani oleh api/resolve.js —
+ * sehingga perilaku dev dan deploy identik.
+ */
+function tiktokShortLinkResolver() {
+  const handle = async (req, res) => {
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    try {
+      const urlParam = new URL(req.url, 'http://localhost').searchParams.get('url');
+      if (!urlParam) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ ok: false, error: 'Parameter "url" wajib diisi.' }));
+        return;
+      }
+      const result = await resolveTikTokUrl(urlParam);
+      res.statusCode = result.ok ? 200 : 422;
+      res.end(JSON.stringify(result));
+    } catch {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ ok: false, error: 'Internal error saat resolve link.' }));
+    }
+  };
+
+  return {
+    name: 'tiktok-short-link-resolver',
+    configureServer(server) {
+      server.middlewares.use('/api/resolve', handle);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/resolve', handle);
+    },
+  };
+}
 
 /**
  * TikTok Auto-Tap Web - Vite configuration
@@ -14,6 +50,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    tiktokShortLinkResolver(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',

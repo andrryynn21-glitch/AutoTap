@@ -21,6 +21,10 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
 - **Embed resmi TikTok Player v1** untuk link video: `tiktok.com/player/v1/{id}` (autoplay + loop).
 - **LIVE / username** (`@user/live` atau `@user`) diperlakukan best-effort (TikTok tidak
   menyediakan embed LIVE resmi untuk pihak ketiga) dengan tombol fallback **Buka di TikTok**.
+- **Link pendek otomatis** (`vt.tiktok.com` / `vm.tiktok.com` / `tiktok.com/t/...`) diperluas
+  dulu via `/api/resolve` — serverless function di Vercel, middleware di dev server — karena
+  browser tidak bisa mengikuti redirect cross-origin. Link kedaluwarsa/batasi wilayah
+  mendapat pesan error yang jelas (bukan sekadar "menunggu link valid").
 - **Demo Mode** internal: area live tiruan dengan tombol like asli untuk menguji engine
   end-to-end (counter naik = event simulasi benar-benar sampai ke elemen DOM).
 
@@ -224,6 +228,7 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
 | Tombol *Install App* tidak muncul di Android | Pastikan https:// + buka dengan Chrome; reload 1x. Prompt muncul hanya jika PWA belum ter-install dan kriteria installability terpenuhi. |
 | Tidak ada tombol install di iOS | Normal — iOS tidak punya prompt API. Gunakan **Share → Add to Home Screen**. |
 | Iframe LIVE kosong / error | Live mungkin belum aktif atau embed diblokir TikTok. Tekan **Buka di TikTok**, atau uji dengan link video. |
+| Link pendek (`vt.tiktok.com/...`) → muncul "link pendek tidak bisa dibuka" | Link kemungkinan **kedaluwarsa / video dihapus / dibatasi wilayah** (TikTok me-redirect ke homepage). Fitur buka-otomatis butuh endpoint `/api/resolve` — otomatis aktif di Vercel & dev server; pada hosting statis murni endpoint ini tidak ada, jadi salin URL lengkap dari address bar browser. |
 | Perubahan kode tidak muncul di HP | Service worker cenderung cache agresif — aplikasi memakai `registerType: 'autoUpdate'`. Tutup semua instance PWA, buka ulang; atau uninstall lalu install ulang. |
 | Icon ingin diganti | Edit `scripts/generate-icons.mjs` lalu `npm run icons`, kemudian rebuild/deploy. |
 | `npm run dev` jalan tapi manifest 404 | Manifest di dev dilayani `vite-plugin-pwa` (`/manifest.json`) — pastikan plugin aktif (default). |
