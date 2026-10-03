@@ -56,7 +56,7 @@ function liveResult(handle, sourceUrl) {
     sourceUrl,
     label: `LIVE · @${handle}`,
     notes: [
-      'TikTok tidak menyediakan embed LIVE resmi untuk pihak ketiga — format ini best-effort. Jika live sedang tidak aktif, iframe bisa menampilkan halaman kosong.',
+      'Embed LIVE bersifat best-effort: halaman embed bisa termuat, tetapi server webcast TikTok sering menjawab 403 sehingga video tampil hitam di embed pihak ketiga. Coba izinkan cookie pihak ketiga lalu tekan "Coba Lagi", atau gunakan "Buka di TikTok".',
       'Browser TIDAK mengizinkan event tap sintetis menembus iframe cross-origin. Gunakan Demo Mode untuk mengetes engine penuh, atau biarkan tap count berjalan di overlay.',
     ],
   };

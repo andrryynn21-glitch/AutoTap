@@ -208,9 +208,13 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
    Engine akan **benar-benar menerima tap** ketika elemen target berada di DOM aplikasi
    sendiri (Demo Mode, tombol-tombol UI) atau pada iframe **same-origin** (mis. konten
    milikmu yang kamu host sendiri lalu di-embed).
-2. **LIVE embed bersifat best-effort.** TikTok tidak menyediakan embed LIVE resmi untuk
-   pihak ketiga; jika format `tiktok.com/embed/@user/live` tidak memuat apa pun, gunakan
-   tombol **Buka di TikTok**. Embed **video** memakai player resmi sehingga stabil.
+2. **LIVE embed dibatasi TikTok (403).** Halaman embed `tiktok.com/embed/@user/live` memang
+   termuat (badge LIVE & jumlah penonton muncul), tetapi server `webcast.tiktok.com` menolak
+   mengirim data stream ke konteks iframe pihak ketiga → **area video hitam**, tombol
+   "Open App" / "jump live" tampil. Ini keputusan TikTok, bukan bug aplikasi. Aplikasi
+   menampilkan panduan: izinkan **cookie pihak ketiga** untuk situs ini lalu tekan **Coba Lagi**
+   (kadang berhasil), atau gunakan tombol **Buka di TikTok**. Embed **video** memakai player
+   resmi TikTok dan stabil (bisa dites dengan `tiktok.com/@scout2015/video/6718335390845095173`).
 3. **Tab background di-throttle browser.** Karena itu ada opsi *auto-pause saat tab
    disembunyikan* (default aktif) agar ritme tidak rusak.
 4. **Gunakan secara bertanggung jawab.** Alat ini untuk eksperimen pribadi dan pengujian
@@ -227,7 +231,7 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
 | --- | --- |
 | Tombol *Install App* tidak muncul di Android | Pastikan https:// + buka dengan Chrome; reload 1x. Prompt muncul hanya jika PWA belum ter-install dan kriteria installability terpenuhi. |
 | Tidak ada tombol install di iOS | Normal — iOS tidak punya prompt API. Gunakan **Share → Add to Home Screen**. |
-| Iframe LIVE kosong / error | Live mungkin belum aktif atau embed diblokir TikTok. Tekan **Buka di TikTok**, atau uji dengan link video. |
+| Video LIVE hitam di embed (hanya badge "LIVE" / tombol "Open App") | Server **webcast TikTok** menjawab **403** untuk streaming LIVE dari iframe pihak ketiga — lihat bagian *Batasan Penting*. Coba: izinkan cookie pihak ketiga → tombol **Coba Lagi**; atau gunakan **Buka di TikTok**. Embed **video** biasa tidak terdampak. |
 | Link pendek (`vt.tiktok.com/...`) → muncul "link pendek tidak bisa dibuka" | Link kemungkinan **kedaluwarsa / video dihapus / dibatasi wilayah** (TikTok me-redirect ke homepage). Fitur buka-otomatis butuh endpoint `/api/resolve` — otomatis aktif di Vercel & dev server; pada hosting statis murni endpoint ini tidak ada, jadi salin URL lengkap dari address bar browser. |
 | Perubahan kode tidak muncul di HP | Service worker cenderung cache agresif — aplikasi memakai `registerType: 'autoUpdate'`. Tutup semua instance PWA, buka ulang; atau uninstall lalu install ulang. |
 | Icon ingin diganti | Edit `scripts/generate-icons.mjs` lalu `npm run icons`, kemudian rebuild/deploy. |

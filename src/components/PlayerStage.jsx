@@ -29,6 +29,8 @@ export function PlayerStage({
   const [draft, setDraft] = useState(input);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [liveNoticeDismissedFor, setLiveNoticeDismissedFor] = useState(null);
 
   useEffect(() => {
     setDraft(input);
@@ -118,6 +120,15 @@ export function PlayerStage({
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {mode === 'embed' && resolved.ok && <Chip tone="green">Terhubung · {resolved.label}</Chip>}
+        {mode === 'embed' && resolved.ok && (
+          <button
+            type="button"
+            onClick={() => setReloadNonce((nonce) => nonce + 1)}
+            className="inline-flex items-center gap-1 rounded-full border border-ink-600 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100"
+          >
+            ⟳ Coba Lagi
+          </button>
+        )}
         {mode === 'embed' && resolved.kind === 'short-link' && (
           <Chip tone="cyan">Link pendek terdeteksi — tekan Muat untuk membuka</Chip>
         )}
@@ -137,6 +148,43 @@ export function PlayerStage({
         )}
       </div>
 
+      {mode === 'embed' && resolved.kind === 'live' && liveNoticeDismissedFor !== resolved.embedUrl && (
+        <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
+          <p className="font-bold text-amber-300">
+            Video LIVE hitam / hanya badge “LIVE” yang muncul?
+          </p>
+          <p className="mt-1">
+            TikTok membatasi streaming LIVE di embed pihak ketiga: halaman embed memang termuat,
+            tetapi server webcast TikTok menolak data video (error 403). Ini batasan dari pihak
+            TikTok, bukan aplikasi.
+          </p>
+          <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+            <li>
+              Chrome desktop: klik ikon <b>cookie/mata</b> di address bar → izinkan cookie pihak
+              ketiga untuk situs ini, lalu tekan <b>Coba Lagi</b>.
+            </li>
+            <li>
+              iOS Safari: Settings → Safari → matikan <b>Prevent Cross-Site Tracking</b> (pastikan
+              Block All Cookies nonaktif), lalu reload.
+            </li>
+            <li>
+              Paling andal: tombol <b>Buka di TikTok</b> / tonton langsung dari aplikasi TikTok.
+            </li>
+            <li>
+              Untuk embed yang pasti jalan: pakai link <b>video</b> biasa; untuk uji engine:{' '}
+              <b>Demo Mode</b>.
+            </li>
+          </ul>
+          <button
+            type="button"
+            onClick={() => setLiveNoticeDismissedFor(resolved.embedUrl)}
+            className="mt-2 rounded-full border border-amber-500/40 px-3 py-1 text-[11px] font-medium text-amber-300 transition-colors hover:bg-amber-500/10"
+          >
+            Sembunyikan info ini
+          </button>
+        </div>
+      )}
+
       {/* stage: konten + overlay target */}
       <div className="mt-3 flex justify-center">
         <div
@@ -146,7 +194,7 @@ export function PlayerStage({
         >
           {showFrame ? (
             <iframe
-              key={resolved.embedUrl}
+              key={`${resolved.embedUrl}::${reloadNonce}`}
               title="TikTok Player"
               src={resolved.embedUrl}
               className="absolute inset-0 h-full w-full border-0 bg-black"
