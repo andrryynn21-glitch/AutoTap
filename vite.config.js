@@ -1,0 +1,77 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
+
+/**
+ * TikTok Auto-Tap Web - Vite configuration
+ *
+ * The PWA engine (`vite-plugin-pwa`) generates:
+ *  - public "manifest.json"  (name, icons 192/512 + maskable, theme color, standalone display)
+ *  - "sw.js" service worker  (precache of the app shell -> installable + offline shell)
+ */
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      // The user-facing manifest literally lives at /manifest.json
+      manifestFilename: 'manifest.json',
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      manifest: {
+        id: '/',
+        name: 'TikTok Auto-Tap Web',
+        short_name: 'Auto-Tap',
+        description:
+          'PWA auto-tap dengan target pointer yang bisa digeser, jitter acak dan micro-pause untuk ritme ketukan yang natural.',
+        lang: 'id',
+        dir: 'ltr',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
+        orientation: 'portrait',
+        background_color: '#07070b',
+        theme_color: '#07070b',
+        categories: ['utilities', 'entertainment'],
+        icons: [
+          {
+            src: 'icons/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/maskable-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: 'icons/maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,json}'],
+        navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
+    }),
+  ],
+});
