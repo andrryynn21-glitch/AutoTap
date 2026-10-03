@@ -238,3 +238,4 @@ MIT — bebas dipakai dan dimodifikasi untuk keperluan pribadi/pembelajaran.
 bertanggung jawab penuh atas penggunaan dan kepatuhan terhadap ketentuan platform.
 
 
+# AutoTap
