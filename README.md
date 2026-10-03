@@ -21,6 +21,13 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
 - **Embed resmi TikTok Player v1** untuk link video: `tiktok.com/player/v1/{id}` (autoplay + loop).
 - **LIVE / username** (`@user/live` atau `@user`) diperlakukan best-effort (TikTok tidak
   menyediakan embed LIVE resmi untuk pihak ketiga) dengan tombol fallback **Buka di TikTok**.
+- **Cek status LIVE otomatis** lewat `/api/live-status`: di bawah kolom input muncul badge
+  **❌ Akun tidak ditemukan** / **⚪ Tidak sedang LIVE** / **🔴 LIVE sekarang · N penonton**
+  (plus judul siaran & jumlah followers) dan tombol **Cek ulang status**. Jadi penyebab layar
+  hitam — username salah atau streamer offline — langsung terlihat tanpa perlu DevTools.
+- **Mode Halaman Penuh (eksperimen)** untuk LIVE: memuat `tiktok.com/@user/live` penuh di
+  dalam frame ber-`sandbox` (sandbox memblokir *framebusting* ke halaman utama) — kadang
+  stream tetap bisa diputar di sana.
 - **Link pendek otomatis** (`vt.tiktok.com` / `vm.tiktok.com` / `tiktok.com/t/...`) diperluas
   dulu via `/api/resolve` — serverless function di Vercel, middleware di dev server — karena
   browser tidak bisa mengikuti redirect cross-origin. Link kedaluwarsa/batasi wilayah
@@ -73,6 +80,12 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
 ├── index.html                      # Meta PWA + iOS meta tags
 ├── vite.config.js                  # VitePWA: manifest, workbox, devOptions
 ├── vercel.json                     # Rewrite SPA + cache header sw.js/manifest
+├── server/
+│   ├── resolveTikTokUrl.js         # Logika follow redirect link pendek
+│   └── checkLiveStatus.js          # Cek status LIVE (akun ada? live? penonton?)
+├── api/
+│   ├── resolve.js                  # Vercel function /api/resolve
+│   └── live-status.js              # Vercel function /api/live-status
 ├── public/
 │   ├── favicon.svg
 │   ├── apple-touch-icon.png        # 180x180 (hasil generate)
@@ -185,7 +198,8 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
 
 1. **Pilih mode player** (segmented kanan atas):
    - **TikTok** — tempel link video (`tiktok.com/@user/video/123...`) atau link/username
-     LIVE (`@user`), tekan **Muat**.
+     LIVE (`@user`), tekan **Muat**. Untuk LIVE, tunggu badge status di bawah kolom input:
+     akun tidak ditemukan / tidak sedang LIVE / LIVE + jumlah penonton.
    - **Demo** — area uji internal; paling pas untuk membuktikan engine bekerja.
 2. **Geser target pointer** ke titik yang ingin diketuk (mis. tombol ❤️).
    Bisa juga pakai tombol panah keyboard.
@@ -208,13 +222,19 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
    Engine akan **benar-benar menerima tap** ketika elemen target berada di DOM aplikasi
    sendiri (Demo Mode, tombol-tombol UI) atau pada iframe **same-origin** (mis. konten
    milikmu yang kamu host sendiri lalu di-embed).
-2. **LIVE embed dibatasi TikTok (403).** Halaman embed `tiktok.com/embed/@user/live` memang
-   termuat (badge LIVE & jumlah penonton muncul), tetapi server `webcast.tiktok.com` menolak
-   mengirim data stream ke konteks iframe pihak ketiga → **area video hitam**, tombol
-   "Open App" / "jump live" tampil. Ini keputusan TikTok, bukan bug aplikasi. Aplikasi
-   menampilkan panduan: izinkan **cookie pihak ketiga** untuk situs ini lalu tekan **Coba Lagi**
-   (kadang berhasil), atau gunakan tombol **Buka di TikTok**. Embed **video** memakai player
-   resmi TikTok dan stabil (bisa dites dengan `tiktok.com/@scout2015/video/6718335390845095173`).
+2. **LIVE embed punya tiga penyebab layar hitam** — aplikasi kini berbeda-bedakannya lewat
+   **Cek Status LIVE** (`/api/live-status`):
+   - **Username salah / akun tidak ada.** Embed ke room yang tidak ada tampil kosong walau
+     halaman embed-nya termuat. Contoh nyata: `@mpl.id.official` (MPL Indonesia) **ada**,
+     sedangkan `@mplid.official` **tidak ada** — hanya beda satu titik.
+   - **Streamer sedang tidak LIVE.** Embed umumnya hanya menampilkan splash/hitam sampai
+     siaran dimulai.
+   - **Pembatasan TikTok untuk pihak ketiga.** Status sudah LIVE, tetapi server
+     `webcast.tiktok.com` tetap menolak data stream di iframe embed → area video hitam
+     ("Open App"). Ini keputusan TikTok, bukan bug aplikasi. Coba: izinkan **cookie pihak
+     ketiga** lalu **Coba Lagi**, coba **Mode Halaman Penuh (eksperimen)**, atau tonton lewat
+     **Buka di TikTok**. Embed **video** memakai player resmi TikTok dan stabil (bisa dites
+     dengan `tiktok.com/@scout2015/video/6718335390845095173`).
 3. **Tab background di-throttle browser.** Karena itu ada opsi *auto-pause saat tab
    disembunyikan* (default aktif) agar ritme tidak rusak.
 4. **Gunakan secara bertanggung jawab.** Alat ini untuk eksperimen pribadi dan pengujian
@@ -231,7 +251,8 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
 | --- | --- |
 | Tombol *Install App* tidak muncul di Android | Pastikan https:// + buka dengan Chrome; reload 1x. Prompt muncul hanya jika PWA belum ter-install dan kriteria installability terpenuhi. |
 | Tidak ada tombol install di iOS | Normal — iOS tidak punya prompt API. Gunakan **Share → Add to Home Screen**. |
-| Video LIVE hitam di embed (hanya badge "LIVE" / tombol "Open App") | Server **webcast TikTok** menjawab **403** untuk streaming LIVE dari iframe pihak ketiga — lihat bagian *Batasan Penting*. Coba: izinkan cookie pihak ketiga → tombol **Coba Lagi**; atau gunakan **Buka di TikTok**. Embed **video** biasa tidak terdampak. |
+| Video LIVE hitam di embed (hanya badge "LIVE" / tombol "Open App") | Baca dulu **badge status** di bawah kolom input: **❌ Akun tidak ditemukan** (salah ketik username, mis. `@mplid.official` vs `@mpl.id.official`), **⚪ Tidak sedang LIVE** (tunggu mulai siaran), atau **🔴 LIVE sekarang** (kalau yang ini, video hitam = pembatasan TikTok, lihat *Batasan Penting*). Lanjut: izinkan cookie pihak ketiga → **Coba Lagi**; **Mode Halaman Penuh (eksperimen)**; atau **Buka di TikTok**. Embed **video** biasa tidak terdampak. |
+| Badge status LIVE tidak muncul / "Endpoint tidak tersedia" | `/api/live-status` butuh deploy **Vercel** (`api/live-status.js`) atau `npm run dev` (middleware Vite). Pada hosting statis murni endpoint `api/` tidak ada — deploy ulang ke Vercel, atau sementara pakai **Demo Mode**. |
 | Link pendek (`vt.tiktok.com/...`) → muncul "link pendek tidak bisa dibuka" | Link kemungkinan **kedaluwarsa / video dihapus / dibatasi wilayah** (TikTok me-redirect ke homepage). Fitur buka-otomatis butuh endpoint `/api/resolve` — otomatis aktif di Vercel & dev server; pada hosting statis murni endpoint ini tidak ada, jadi salin URL lengkap dari address bar browser. |
 | Perubahan kode tidak muncul di HP | Service worker cenderung cache agresif — aplikasi memakai `registerType: 'autoUpdate'`. Tutup semua instance PWA, buka ulang; atau uninstall lalu install ulang. |
 | Icon ingin diganti | Edit `scripts/generate-icons.mjs` lalu `npm run icons`, kemudian rebuild/deploy. |

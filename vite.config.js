@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { resolveTikTokUrl } from './server/resolveTikTokUrl.js';
+import { checkLiveStatus } from './server/checkLiveStatus.js';
 
 /**
  * Middleware dev & preview server untuk /api/resolve (link pendek TikTok).
@@ -40,6 +41,40 @@ function tiktokShortLinkResolver() {
 }
 
 /**
+ * Middleware dev & preview server untuk /api/live-status (status LIVE TikTok).
+ * Di production Vercel, endpoint yang sama ditangani oleh api/live-status.js.
+ */
+function tiktokLiveStatusChecker() {
+  const handle = async (req, res) => {
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    try {
+      const handleParam = new URL(req.url, 'http://localhost').searchParams.get('handle');
+      if (!handleParam) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ ok: false, error: 'Parameter "handle" wajib diisi.' }));
+        return;
+      }
+      const result = await checkLiveStatus(handleParam);
+      res.statusCode = result.ok ? 200 : 422;
+      res.end(JSON.stringify(result));
+    } catch {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ ok: false, error: 'Internal error saat cek status LIVE.' }));
+    }
+  };
+
+  return {
+    name: 'tiktok-live-status-checker',
+    configureServer(server) {
+      server.middlewares.use('/api/live-status', handle);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/live-status', handle);
+    },
+  };
+}
+
+/**
  * TikTok Auto-Tap Web - Vite configuration
  *
  * The PWA engine (`vite-plugin-pwa`) generates:
@@ -51,6 +86,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     tiktokShortLinkResolver(),
+    tiktokLiveStatusChecker(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',

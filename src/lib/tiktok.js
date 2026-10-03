@@ -52,11 +52,14 @@ function liveResult(handle, sourceUrl) {
     ok: true,
     kind: 'live',
     input: sourceUrl,
+    handle,
     embedUrl: `https://www.tiktok.com/embed/@${handle}/live`,
+    livePageUrl: `https://www.tiktok.com/@${handle}/live`,
     sourceUrl,
     label: `LIVE · @${handle}`,
     notes: [
-      'Embed LIVE bersifat best-effort: halaman embed bisa termuat, tetapi server webcast TikTok sering menjawab 403 sehingga video tampil hitam di embed pihak ketiga. Coba izinkan cookie pihak ketiga lalu tekan "Coba Lagi", atau gunakan "Buka di TikTok".',
+      'Status akun dicek otomatis via /api/live-status: aplikasi memberi tahu bila username salah / akun tidak ada, sedang offline, atau LIVE lengkap dengan jumlah penonton.',
+      'Bila akun LIVE tetapi video di embed tetap hitam: TikTok membatasi streaming LIVE di embed pihak ketiga. Gunakan "Buka di TikTok", "Mode Halaman Penuh" (eksperimen), atau Demo Mode.',
       'Browser TIDAK mengizinkan event tap sintetis menembus iframe cross-origin. Gunakan Demo Mode untuk mengetes engine penuh, atau biarkan tap count berjalan di overlay.',
     ],
   };
@@ -189,4 +192,40 @@ export async function resolveShortTikTokLink(input) {
   }
 
   return data.url;
+}
+
+/**
+ * Cek status LIVE akun TikTok via endpoint /api/live-status
+ * (serverless di Vercel; middleware Vite saat dev/preview).
+ *
+ * @returns {Promise<{ok: boolean, handle: string, exists: boolean, live: boolean,
+ *                    nickname?: string, verified?: boolean, followers?: number|null,
+ *                    viewers?: number|null, title?: string, message?: string}>}
+ * @throws {Error} pesan ramah untuk ditampilkan di UI
+ */
+export async function checkLiveStatus(rawInput) {
+  const raw = String(rawInput ?? '').trim();
+  if (!raw) throw new Error('Username/LIVE URL kosong.');
+
+  let response;
+  try {
+    response = await fetch(`/api/live-status?handle=${encodeURIComponent(raw)}`, {
+      headers: { accept: 'application/json' },
+    });
+  } catch {
+    throw new Error('Endpoint /api/live-status tidak tersedia (butuh deploy Vercel atau dev server).');
+  }
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    /* bukan JSON — mis. 404 HTML pada hosting statis */
+  }
+
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.error || 'Tidak bisa memeriksa status LIVE. Coba lagi.');
+  }
+
+  return data;
 }

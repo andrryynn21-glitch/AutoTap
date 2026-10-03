@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Chip, SectionCard, Segmented } from './ui.jsx';
 import { DemoSurface } from './DemoSurface.jsx';
 import { TapLayer } from './TapLayer.jsx';
-import { isShortTikTokLink, resolveShortTikTokLink } from '../lib/tiktok.js';
+import { checkLiveStatus, isShortTikTokLink, resolveShortTikTokLink } from '../lib/tiktok.js';
+import { formatNumber } from '../lib/format.js';
 
 /**
  * PlayerStage — wadah "web view" TikTok + overlay target pointer.
@@ -31,10 +32,48 @@ export function PlayerStage({
   const [resolveError, setResolveError] = useState(null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [liveNoticeDismissedFor, setLiveNoticeDismissedFor] = useState(null);
+  const [liveStatus, setLiveStatus] = useState(null); // null | {loading} | {data} | {error}
+  const [statusNonce, setStatusNonce] = useState(0);
+  const [fullPageMode, setFullPageMode] = useState(false);
 
   useEffect(() => {
     setDraft(input);
   }, [input]);
+
+  // Target LIVE saat ini (null bila bukan LIVE) — dipakai untuk cek status otomatis.
+  const liveHandle =
+    mode === 'embed' && resolved.kind === 'live' && resolved.ok ? resolved.handle : null;
+
+  // Saat target LIVE berubah: reset mode eksperimen & hasil cek status lama.
+  useEffect(() => {
+    setFullPageMode(false);
+    setLiveStatus(null);
+  }, [liveHandle]);
+
+  // Cek status LIVE via /api/live-status (otomatis + tombol "Cek ulang").
+  useEffect(() => {
+    if (!liveHandle) return undefined;
+
+    let cancelled = false;
+    setLiveStatus({ loading: true });
+
+    checkLiveStatus(liveHandle)
+      .then((data) => {
+        if (!cancelled) setLiveStatus({ loading: false, data });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLiveStatus({
+            loading: false,
+            error: error?.message || 'Tidak bisa memeriksa status LIVE.',
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [liveHandle, statusNonce]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -65,6 +104,7 @@ export function PlayerStage({
   };
 
   const showFrame = mode === 'embed' && resolved.ok && resolved.embedUrl;
+  const frameSrc = fullPageMode && resolved.livePageUrl ? resolved.livePageUrl : resolved.embedUrl;
 
   return (
     <SectionCard
@@ -148,10 +188,91 @@ export function PlayerStage({
         )}
       </div>
 
-      {mode === 'embed' && resolved.kind === 'live' && liveNoticeDismissedFor !== resolved.embedUrl && (
+      {mode === 'embed' && resolved.kind === 'live' && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {(!liveStatus || liveStatus.loading) && (
+            <Chip tone="cyan" className="animate-pulse">
+              Memeriksa status LIVE @{resolved.handle}…
+            </Chip>
+          )}
+          {liveStatus?.data?.ok && !liveStatus.data.exists && (
+            <Chip tone="pink">❌ Akun tidak ditemukan</Chip>
+          )}
+          {liveStatus?.data?.live && (
+            <Chip tone="green">
+              🔴 LIVE sekarang
+              {liveStatus.data.viewers != null
+                ? ` · ${formatNumber(liveStatus.data.viewers)} penonton`
+                : ''}
+            </Chip>
+          )}
+          {liveStatus?.data?.ok && liveStatus.data.exists && !liveStatus.data.live && (
+            <Chip tone="amber">⚪ Tidak sedang LIVE</Chip>
+          )}
+          {liveStatus?.error && <Chip tone="amber">⚠ Status tidak bisa dicek</Chip>}
+          <button
+            type="button"
+            onClick={() => setStatusNonce((nonce) => nonce + 1)}
+            disabled={Boolean(liveStatus?.loading)}
+            className="inline-flex items-center gap-1 rounded-full border border-ink-600 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100 disabled:cursor-wait disabled:opacity-60"
+          >
+            ⟳ Cek ulang status
+          </button>
+        </div>
+      )}
+
+      {mode === 'embed' && resolved.kind === 'live' && liveStatus?.data?.ok && !liveStatus.data.exists && (
+        <div className="mt-3 rounded-xl border border-tik-pink/40 bg-tik-pink/10 px-3 py-2.5 text-[11px] leading-relaxed text-tik-pink">
+          <p className="font-bold">Akun TikTok tidak ditemukan.</p>
+          <p className="mt-1">{liveStatus.data.message}</p>
+          <p className="mt-1 text-tik-pink/80">
+            Embed LIVE ke akun yang tidak ada akan tampil hitam/kosong walau halaman embed-nya
+            termuat di browser. Perbaiki username di kolom atas lalu tekan <b>Muat</b>.
+          </p>
+        </div>
+      )}
+
+      {mode === 'embed' && resolved.kind === 'live' && liveStatus?.data?.live && (
+        <div className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-emerald-300">
+          <p className="font-bold text-emerald-400">
+            🔴 LIVE sekarang{liveStatus.data.nickname ? ` — ${liveStatus.data.nickname}` : ''}
+            {liveStatus.data.verified ? ' ✓' : ''}
+          </p>
+          {liveStatus.data.title && <p className="mt-1">“{liveStatus.data.title}”</p>}
+          <p className="mt-1 tabular-nums">
+            {liveStatus.data.viewers != null
+              ? `${formatNumber(liveStatus.data.viewers)} penonton`
+              : 'Sedang siaran'}
+            {liveStatus.data.followers != null
+              ? ` · ${formatNumber(liveStatus.data.followers)} followers`
+              : ''}
+          </p>
+        </div>
+      )}
+
+      {mode === 'embed' &&
+        resolved.kind === 'live' &&
+        liveStatus &&
+        !liveStatus.loading &&
+        liveStatus.data?.ok &&
+        liveStatus.data.exists &&
+        !liveStatus.data.live && (
+          <p className="mt-3 rounded-xl border border-ink-600 bg-ink-950/60 px-3 py-2.5 text-[11px] leading-relaxed text-ink-300">
+            ⚪ Akun ini tidak sedang LIVE. Embed LIVE umumnya hanya menampilkan splash/hitam sampai
+            streamer mulai siaran — tekan <b>Cek ulang status</b> saat sudah mulai.
+          </p>
+        )}
+
+      {mode === 'embed' && resolved.kind === 'live' && liveStatus?.error && (
+        <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
+          ⚠ {liveStatus.error}
+        </p>
+      )}
+
+      {mode === 'embed' && resolved.kind === 'live' && liveStatus?.data?.live && liveNoticeDismissedFor !== resolved.embedUrl && (
         <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
           <p className="font-bold text-amber-300">
-            Video LIVE hitam / hanya badge “LIVE” yang muncul?
+            Status LIVE, tetapi video embed tetap hitam?
           </p>
           <p className="mt-1">
             TikTok membatasi streaming LIVE di embed pihak ketiga: halaman embed memang termuat,
@@ -159,6 +280,10 @@ export function PlayerStage({
             TikTok, bukan aplikasi.
           </p>
           <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+            <li>
+              Coba tombol <b>Mode Halaman Penuh (eksperimen)</b> di atas — memuat halaman live
+              TikTok lengkap di dalam frame, kadang bisa memutar stream-nya.
+            </li>
             <li>
               Chrome desktop: klik ikon <b>cookie/mata</b> di address bar → izinkan cookie pihak
               ketiga untuk situs ini, lalu tekan <b>Coba Lagi</b>.
@@ -185,6 +310,28 @@ export function PlayerStage({
         </div>
       )}
 
+      {mode === 'embed' && resolved.kind === 'live' && resolved.livePageUrl && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setFullPageMode((value) => !value)}
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              fullPageMode
+                ? 'border-tik-cyan/50 bg-tik-cyan/10 text-tik-cyan'
+                : 'border-ink-600 text-ink-300 hover:border-ink-500 hover:text-ink-100'
+            }`}
+          >
+            {fullPageMode ? '↩ Kembali ke Embed Ringkas' : '🖥 Mode Halaman Penuh (eksperimen)'}
+          </button>
+          {fullPageMode && (
+            <span className="text-[10px] leading-snug text-ink-500">
+              Halaman live TikTok penuh dimuat dalam frame dengan sandbox — jika blank/error,
+              kembali ke embed ringkas.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* stage: konten + overlay target */}
       <div className="mt-3 flex justify-center">
         <div
@@ -194,12 +341,18 @@ export function PlayerStage({
         >
           {showFrame ? (
             <iframe
-              key={`${resolved.embedUrl}::${reloadNonce}`}
+              key={`${frameSrc}::${reloadNonce}`}
               title="TikTok Player"
-              src={resolved.embedUrl}
+              src={frameSrc}
               className="absolute inset-0 h-full w-full border-0 bg-black"
-              allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write"
+              allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write; accelerometer; gyroscope"
               allowFullScreen
+              {...(fullPageMode
+                ? {
+                    sandbox:
+                      'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation',
+                  }
+                : {})}
               referrerPolicy="strict-origin-when-cross-origin"
               loading="lazy"
             />
