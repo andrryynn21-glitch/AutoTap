@@ -345,7 +345,7 @@ export function PlayerStage({
               title="TikTok Player"
               src={frameSrc}
               className="absolute inset-0 h-full w-full border-0 bg-black"
-              allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write; accelerometer; gyroscope"
+              allow="autoplay; encrypted-media; picture-in-picture; clipboard-write; accelerometer; gyroscope; magnetometer; unload"
               allowFullScreen
               {...(fullPageMode
                 ? {

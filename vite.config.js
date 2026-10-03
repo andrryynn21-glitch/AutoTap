@@ -82,6 +82,18 @@ function tiktokLiveStatusChecker() {
  *  - "sw.js" service worker  (precache of the app shell -> installable + offline shell)
  */
 export default defineConfig({
+  // Parity dengan vercel.json: izinkan unload di dokumen induk agar bisa
+  // didelegasikan ke iframe TikTok (lihat header Permissions-Policy di vercel.json).
+  server: {
+    headers: {
+      'Permissions-Policy': 'unload=(self "https://www.tiktok.com")',
+    },
+  },
+  preview: {
+    headers: {
+      'Permissions-Policy': 'unload=(self "https://www.tiktok.com")',
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
