@@ -95,6 +95,38 @@ input[type="number"] {
   animation: target-pulse 1.5s ease-out infinite;
 }
 
+/* cincin beat pacer irama — direstart tiap ketukan lewat remount `key` */
+@keyframes pacer-beat-ring {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
+.pacer-beat {
+  animation: pacer-beat-ring 620ms cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+}
+
+/* titik kecil di bilah mini pacer */
+@keyframes pacer-beat-dot {
+  0% {
+    transform: scale(1.7);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+}
+
+.pacer-beat-dot {
+  animation: pacer-beat-dot 420ms ease-out;
+}
+
 /* hati yang melayang di demo surface */
 @keyframes heart-float {
   0% {

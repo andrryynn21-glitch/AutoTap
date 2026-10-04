@@ -4,6 +4,7 @@ import { DemoSurface } from './DemoSurface.jsx';
 import { TapLayer } from './TapLayer.jsx';
 import { checkLiveStatus, isShortTikTokLink, resolveShortTikTokLink } from '../lib/tiktok.js';
 import { formatNumber } from '../lib/format.js';
+import { copyText } from '../lib/clipboard.js';
 
 /**
  * PlayerStage — wadah "web view" TikTok + overlay target pointer.
@@ -31,7 +32,7 @@ export function PlayerStage({
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState(null);
   const [reloadNonce, setReloadNonce] = useState(0);
-  const [liveNoticeDismissedFor, setLiveNoticeDismissedFor] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
   const [liveStatus, setLiveStatus] = useState(null); // null | {loading} | {data} | {error}
   const [statusNonce, setStatusNonce] = useState(0);
   const [fullPageMode, setFullPageMode] = useState(false);
@@ -169,6 +170,23 @@ export function PlayerStage({
             ⟳ Coba Lagi
           </button>
         )}
+        {mode === 'embed' && resolved.ok && resolved.sourceUrl && (
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await copyText(
+                `${window.location.origin}/?u=${encodeURIComponent(resolved.sourceUrl)}`,
+              );
+              if (ok) {
+                setShareCopied(true);
+                window.setTimeout(() => setShareCopied(false), 2000);
+              }
+            }}
+            className="inline-flex items-center gap-1 rounded-full border border-ink-600 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100"
+          >
+            {shareCopied ? '✓ Link disalin' : '🔗 Salin link siap pakai'}
+          </button>
+        )}
         {mode === 'embed' && resolved.kind === 'short-link' && (
           <Chip tone="cyan">Link pendek terdeteksi — tekan Muat untuk membuka</Chip>
         )}
@@ -247,6 +265,30 @@ export function PlayerStage({
               ? ` · ${formatNumber(liveStatus.data.followers)} followers`
               : ''}
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <a
+              href="#pacer"
+              className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2.5 py-1 font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
+            >
+              🥁 Pacer HP (pemandu irama)
+            </a>
+            <a
+              href="#script"
+              className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2.5 py-1 font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
+            >
+              💻 Script Auto-Tap (laptop)
+            </a>
+            {resolved.livePageUrl && (
+              <a
+                href={resolved.livePageUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2.5 py-1 font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
+              >
+                ↗ Buka di TikTok
+              </a>
+            )}
+          </div>
         </div>
       )}
 
@@ -269,45 +311,39 @@ export function PlayerStage({
         </p>
       )}
 
-      {mode === 'embed' && resolved.kind === 'live' && liveStatus?.data?.live && liveNoticeDismissedFor !== resolved.embedUrl && (
-        <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
-          <p className="font-bold text-amber-300">
-            Status LIVE, tetapi video embed tetap hitam?
-          </p>
-          <p className="mt-1">
-            TikTok membatasi streaming LIVE di embed pihak ketiga: halaman embed memang termuat,
-            tetapi server webcast TikTok menolak data video (error 403). Ini batasan dari pihak
-            TikTok, bukan aplikasi.
-          </p>
-          <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
-            <li>
-              Coba tombol <b>Mode Halaman Penuh (eksperimen)</b> di atas — memuat halaman live
-              TikTok lengkap di dalam frame, kadang bisa memutar stream-nya.
-            </li>
-            <li>
-              Chrome desktop: klik ikon <b>cookie/mata</b> di address bar → izinkan cookie pihak
-              ketiga untuk situs ini, lalu tekan <b>Coba Lagi</b>.
-            </li>
-            <li>
-              iOS Safari: Settings → Safari → matikan <b>Prevent Cross-Site Tracking</b> (pastikan
-              Block All Cookies nonaktif), lalu reload.
-            </li>
-            <li>
-              Paling andal: tombol <b>Buka di TikTok</b> / tonton langsung dari aplikasi TikTok.
-            </li>
-            <li>
-              Untuk embed yang pasti jalan: pakai link <b>video</b> biasa; untuk uji engine:{' '}
-              <b>Demo Mode</b>.
-            </li>
-          </ul>
-          <button
-            type="button"
-            onClick={() => setLiveNoticeDismissedFor(resolved.embedUrl)}
-            className="mt-2 rounded-full border border-amber-500/40 px-3 py-1 text-[11px] font-medium text-amber-300 transition-colors hover:bg-amber-500/10"
-          >
-            Sembunyikan info ini
-          </button>
-        </div>
+      {mode === 'embed' && resolved.kind === 'live' && liveStatus?.data?.live && (
+        <details className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-[11px] leading-relaxed text-amber-200">
+          <summary className="cursor-pointer px-3 py-2.5 font-bold text-amber-300">
+            ⓘ Kenapa video LIVE di embed tetap hitam? (buka untuk penjelasan & solusi)
+          </summary>
+          <div className="px-3 pb-3">
+            <p>
+              TikTok membatasi streaming LIVE di embed pihak ketiga: halaman embed memang
+              termuat, tetapi server webcast TikTok menolak data video (error 403). Ini
+              batasan dari pihak TikTok, bukan aplikasi.
+            </p>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+              <li>
+                <b>Cara yang benar-benar bekerja:</b> panel <b>🥁 Pacer Irama</b> (HP,
+                split-screen dengan aplikasi TikTok) atau <b>💻 Script Auto-Tap</b> (laptop,
+                berjalan di halaman TikTok langsung) di halaman ini.
+              </li>
+              <li>
+                Eksperimen: tombol <b>Mode Halaman Penuh</b> kadang bisa memutar stream. Di
+                Chrome desktop, klik ikon <b>cookie</b> di address bar → izinkan cookie pihak
+                ketiga untuk situs ini, lalu tekan <b>Coba Lagi</b>.
+              </li>
+              <li>
+                iOS Safari: Settings → Safari → matikan <b>Prevent Cross-Site Tracking</b>{' '}
+                (pastikan Block All Cookies nonaktif), lalu reload.
+              </li>
+              <li>
+                Paling simpel: tonton langsung via <b>Buka di TikTok</b> sambil memakai Pacer
+                dari HP.
+              </li>
+            </ul>
+          </div>
+        </details>
       )}
 
       {mode === 'embed' && resolved.kind === 'live' && resolved.livePageUrl && (
@@ -401,9 +437,11 @@ export function PlayerStage({
       )}
 
       <p className="mt-2 text-[11px] leading-relaxed text-ink-500">
-        💡 Geser lingkaran cyan-pink untuk memindahkan titik tap. Di mode TikTok, tap tetap
-        dihitung & tampil di overlay meskipun browser memblokir event masuk ke iframe
-        cross-origin — gunakan Demo Mode untuk verifikasi penuh.
+        💡 Geser lingkaran cyan-pink untuk memindahkan titik tap. Catatan penting: browser
+        memblokir event tap dari halaman ini agar tidak masuk ke embed TikTok (cross-origin),
+        jadi tap overlay hanya tercatat di aplikasi. Untuk tap yang benar-benar sampai ke
+        TikTok: pakai <b>🥁 Pacer</b> (HP, split-screen) atau <b>💻 Script Auto-Tap</b>{' '}
+        (laptop — berjalan langsung di halaman TikTok).
       </p>
 
     </SectionCard>

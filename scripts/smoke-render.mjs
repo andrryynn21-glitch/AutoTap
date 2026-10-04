@@ -33,6 +33,11 @@ try {
     'demo-like-button',
     'data-tap-handle',
     'Reset Counter &amp; Timer',
+    'Pacer Irama',
+    'MULAI PACER',
+    'Script Auto-Tap',
+    'Salin Script Auto-Tap',
+    'Navigasi cepat',
   ];
 
   let failed = 0;

@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   target: 'tatw:target:v1',
   stage: 'tatw:stage:v1',
   installDismissed: 'tatw:install-dismissed:v1',
+  pacer: 'tatw:pacer:v1',
 };
 
 /** Pengaturan engine default. */
@@ -31,6 +32,15 @@ export const DEFAULT_SETTINGS = {
   microPauseMaxMs: 2600,
   /** otomatis berhenti ketika tab disembunyikan (timer di-throttle browser) */
   pauseWhenHidden: true,
+};
+
+/**
+ * Preferensi Pacer Irama (pemandu tap manual untuk HP / split-screen).
+ * Ritme ketukan mengikuti DEFAULT_SETTINGS di atas.
+ */
+export const DEFAULT_PACER = {
+  soundOn: true,
+  vibrationOn: true,
 };
 
 export const SETTING_LIMITS = {

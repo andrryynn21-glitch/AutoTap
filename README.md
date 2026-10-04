@@ -5,6 +5,15 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
 **micro-pause** — ritme ketukan dibuat semirip mungkin dengan manusia. Siap deploy ke
 **Vercel** dan bisa di-install ke layar utama **Android** maupun **iOS** langsung dari browser.
 
+> **3 mode yang tersedia — pilih sesuai perangkatmu:**
+> 1. **💻 Script Auto-Tap (laptop)** — cara auto-tap yang *benar-benar bekerja*: script
+>    di-paste ke Console DevTools di halaman TikTok (same-origin), jadi ketukannya pasti
+>    diterima. Inilah solusi bila ingin like otomatis sungguhan.
+> 2. **🥁 Pacer Irama (HP)** — pemandu bunyi + getar berirama natural, dipakai
+>    split-screen bersama aplikasi TikTok (tanpa laptop).
+> 3. **Overlay + Demo Mode** — simulasi & pengujian ritme di dalam aplikasi. Catatan:
+>    browser memblokir tap sintetis yang menembus embed TikTok (lihat *Batasan Penting*).
+
 ---
 
 ## ✨ Fitur
@@ -34,6 +43,32 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
   mendapat pesan error yang jelas (bukan sekadar "menunggu link valid").
 - **Demo Mode** internal: area live tiruan dengan tombol like asli untuk menguji engine
   end-to-end (counter naik = event simulasi benar-benar sampai ke elemen DOM).
+
+### 💻 Script Auto-Tap (laptop — benar-benar sampai ke TikTok)
+- Menghasilkan **satu script JavaScript mandiri** dari setelan ritme aplikasi
+  (interval min–max, humanize, micro-pause) untuk di-paste ke **Console DevTools** pada
+  halaman TikTok — berjalan **same-origin**, sehingga event ketukan pasti diterima.
+- **Pencarian tombol like multi-selector** (`[data-e2e="like-btn"]`, varian icon/button,
+  `aria-label` ID/EN, fallback atribut `data-e2e*="like"`) + pencarian ulang otomatis
+  saat DOM TikTok re-render.
+- **Panel HUD** di halaman TikTok: jumlah tap, pace/menit, tombol **Jeda** & **Stop**,
+  plus peringatan bila tombol like tidak ditemukan (mis. belum login).
+- Urutan event seperti klik tikus sungguhan:
+  `pointerdown → mousedown → pointerup → mouseup → click`.
+- Tombol **📋 Salin Script Auto-Tap**, pratinjau script, dan **🔗 salin link live** target.
+- Pengaman anti-dobel-jalan (`window.__TATW__`) — menjalankan ulang script otomatis
+  menghentikan instance lama.
+
+### 🥁 Pacer Irama (pemandu tap di HP)
+- Metronom natural (**bunyi WebAudio + getaran + cincin visual**) memakai ritme yang sama
+  dengan engine: delay acak, humanize 0.88x–1.18x, dan micro-pause (ditandai bunyi rendah
+  + getar ganda).
+- **Bilah mini sticky** di bawah header selama pacer aktif — dirancang untuk
+  **split-screen**: browser dikecilkan di atas, aplikasi TikTok di bawah; bilah tetap
+  terlihat sebagai pemandu + tombol henti cepat.
+- Toggle **suara** & **getaran** (tersimpan otomatis), area **latihan tap manual**
+  dengan hitungan + getaran.
+- Auto-pause saat tab disembunyikan mengikuti opsi yang sama dengan engine.
 
 ### Target Pointer System
 - Lingkaran target melayang (cincin cyan–pink) di atas area player.
@@ -92,6 +127,7 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
 │   └── icons/                      # pwa-192/512 + maskable-192/512
 ├── scripts/
 │   ├── generate-icons.mjs          # npm run icons
+│   ├── check-tapscript.mjs         # npm run check:script (validasi script auto-tap)
 │   └── smoke-render.mjs            # verifikasi render App (SSR)
 └── src/
     ├── main.jsx / App.jsx
@@ -100,9 +136,13 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
     ├── lib/
     │   ├── tapSimulator.js         # Sintesis Pointer/Touch/Mouse event + hit-test
     │   ├── tiktok.js               # Resolver URL TikTok → embed URL
+    │   ├── tapScript.js            # Generator script auto-tap untuk Console TikTok
+    │   ├── rhythm.js               # Logika ritme natural (engine + pacer)
+    │   ├── clipboard.js            # Copy dengan fallback
     │   ├── random.js / format.js / storage.js
     ├── hooks/
     │   ├── useAutoTap.js           # Engine penjadwalan (setTimeout berantai)
+    │   ├── usePacer.js             # Pacer irama (bunyi + getar + visual)
     │   ├── useInstallPrompt.js     # beforeinstallprompt + deteksi iOS
     │   ├── useLocalStorage.js / useWakeLock.js
     └── components/
@@ -110,6 +150,9 @@ PWA berbasis **React + Vite + Tailwind CSS + vite-plugin-pwa** untuk auto-tap de
         ├── PlayerStage.jsx         # Iframe TikTok / Demo + toolbar
         ├── TapLayer.jsx            # Target pointer draggable + ripple
         ├── DemoSurface.jsx         # Area uji engine
+        ├── PacerPanel.jsx          # Panel pemandu irama (HP / split-screen)
+        ├── ScriptPanel.jsx         # Panel Script Auto-Tap (laptop)
+        ├── MiniPacerBar.jsx        # Bilah mini sticky saat pacer aktif
         ├── ControlPanel.jsx / StatsPanel.jsx / SettingsPanel.jsx
         └── ui.jsx                  # Primitif UI (Toggle, RangeField, dll.)
 ```
@@ -136,7 +179,8 @@ npm run preview
 Perintah tambahan:
 
 ```bash
-npm run icons         # generate ulang semua icon PNG (script sendiri, tanpa dependency)
+npm run icons           # generate ulang semua icon PNG (script sendiri, tanpa dependency)
+npm run check:script    # validasi generator script auto-tap (sintaks + penanda penting)
 node scripts/smoke-render.mjs   # smoke test: render seluruh App via SSR Vite
 ```
 
@@ -210,6 +254,31 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
    **Reset Counter & Timer** untuk memulai sesi baru.
 5. Setelan & posisi target otomatis tersimpan; membuka ulang aplikasi akan memulihkannya.
 
+### 💻 Auto-tap di laptop (hasil nyata, paling cepat)
+
+1. Isi username/link LIVE di panel **TikTok Web Player** — status LIVE (ada/tidak, jumlah
+   penonton) langsung dicek otomatis.
+2. Buka panel **Script Auto-Tap** → tekan **📋 Salin Script Auto-Tap**.
+3. Di laptop: buka `https://www.tiktok.com/@user/live` (**login**), tekan **F12 → Console**,
+   ketik `allow pasting` satu kali, tempel script, lalu Enter.
+4. Panel kecil muncul di kiri-bawah halaman TikTok — pantau jumlah tap, gunakan
+   **Jeda/Stop** kapan saja.
+5. Ingin ritme berbeda? Ubah setelan *Kecepatan & Anti-Deteksi*, lalu salin ulang script.
+
+### 🥁 Panduan tap di HP (split-screen, tanpa laptop)
+
+1. Buka LIVE di aplikasi TikTok, aktifkan **split-screen** (Android: tekan lama Recent).
+2. Di jendela browser ini: tekan **MULAI PACER** pada panel *Pacer Irama*.
+3. Kecilkan browser jadi bilah tipis di atas layar — ikuti bunyi/getar sambil menekan ❤️
+   di aplikasi TikTok.
+4. iOS: getaran web tidak didukung Safari — andalkan suara; paling nyaman setelah PWA
+   di-install ke layar utama.
+
+### 🔗 Link siap pakai
+
+Tombol **🔗 Salin link siap pakai** menyalin URL `…/?u=<link TikTok>`; membuka URL tersebut
+langsung memuat target tanpa mengetik ulang (praktis untuk dibuka dari perangkat lain).
+
 ---
 
 ## ⚠️ Batasan Penting (wajib dibaca)
@@ -221,7 +290,9 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
    - dashboard menampilkan status `Diblokir iframe (IFRAME)`.
    Engine akan **benar-benar menerima tap** ketika elemen target berada di DOM aplikasi
    sendiri (Demo Mode, tombol-tombol UI) atau pada iframe **same-origin** (mis. konten
-   milikmu yang kamu host sendiri lalu di-embed).
+   milikmu yang kamu host sendiri lalu di-embed). **Solusi yang benar-benar bekerja:**
+   💻 **Script Auto-Tap** untuk laptop (berjalan di dalam halaman TikTok), atau
+   🥁 **Pacer Irama** untuk HP (pemandu tap manual via bunyi/getar).
 2. **LIVE embed punya tiga penyebab layar hitam** — aplikasi kini berbeda-bedakannya lewat
    **Cek Status LIVE** (`/api/live-status`):
    - **Username salah / akun tidak ada.** Embed ke room yang tidak ada tampil kosong walau
@@ -232,8 +303,9 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
    - **Pembatasan TikTok untuk pihak ketiga.** Status sudah LIVE, tetapi server
      `webcast.tiktok.com` tetap menolak data stream di iframe embed → area video hitam
      ("Open App"). Ini keputusan TikTok, bukan bug aplikasi. Coba: izinkan **cookie pihak
-     ketiga** lalu **Coba Lagi**, coba **Mode Halaman Penuh (eksperimen)**, atau tonton lewat
-     **Buka di TikTok**. Embed **video** memakai player resmi TikTok dan stabil (bisa dites
+     ketiga** lalu **Coba Lagi**, coba **Mode Halaman Penuh (eksperimen)**, atau kombinasi
+     paling andal: tonton lewat **Buka di TikTok** sambil memakai 🥁 **Pacer Irama** dari
+     aplikasi ini. Embed **video** memakai player resmi TikTok dan stabil (bisa dites
      dengan `tiktok.com/@scout2015/video/6718335390845095173`).
 3. **Tab background di-throttle browser.** Karena itu ada opsi *auto-pause saat tab
    disembunyikan* (default aktif) agar ritme tidak rusak.
@@ -251,7 +323,10 @@ untuk `sw.js` dan `manifest.json` agar update PWA selalu segar.
 | --- | --- |
 | Tombol *Install App* tidak muncul di Android | Pastikan https:// + buka dengan Chrome; reload 1x. Prompt muncul hanya jika PWA belum ter-install dan kriteria installability terpenuhi. |
 | Tidak ada tombol install di iOS | Normal — iOS tidak punya prompt API. Gunakan **Share → Add to Home Screen**. |
-| Video LIVE hitam di embed (hanya badge "LIVE" / tombol "Open App") | Baca dulu **badge status** di bawah kolom input: **❌ Akun tidak ditemukan** (salah ketik username, mis. `@mplid.official` vs `@mpl.id.official`), **⚪ Tidak sedang LIVE** (tunggu mulai siaran), atau **🔴 LIVE sekarang** (kalau yang ini, video hitam = pembatasan TikTok, lihat *Batasan Penting*). Lanjut: izinkan cookie pihak ketiga → **Coba Lagi**; **Mode Halaman Penuh (eksperimen)**; atau **Buka di TikTok**. Embed **video** biasa tidak terdampak. |
+| Video LIVE hitam di embed (hanya badge "LIVE" / tombol "Open App") | Baca dulu **badge status** di bawah kolom input: **❌ Akun tidak ditemukan** (salah ketik username, mis. `@mplid.official` vs `@mpl.id.official`), **⚪ Tidak sedang LIVE** (tunggu mulai siaran), atau **🔴 LIVE sekarang** (kalau yang ini, video hitam = pembatasan TikTok, lihat *Batasan Penting*). Lanjut: izinkan cookie pihak ketiga → **Coba Lagi**; **Mode Halaman Penuh (eksperimen)**; atau **Buka di TikTok**. Embed **video** biasa tidak terdampak. Untuk auto-tap yang berhasil gunakan **💻 Script Auto-Tap** (laptop) atau **🥁 Pacer Irama** (HP). |
+| Ingin auto-tap sungguhan tetapi tap overlay tidak "masuk" ke TikTok | Memang tidak bisa — batasan keamanan browser. Gunakan **💻 Script Auto-Tap** (paste ke Console halaman TikTok di laptop) atau **🥁 Pacer** (HP, split-screen). |
+| Script Auto-Tap berhenti di pesan "Tombol like tidak ditemukan" | Pastikan halaman LIVE sudah terbuka penuh & sudah **login**. Script mencari ulang otomatis tiap ~1 detik; jika tetap tidak ada, jalankan ulang script dari Console. |
+| "Gagal menyalin otomatis" saat menyalin script | Clipboard API butuh HTTPS/izin — salin manual dari kotak **Lihat isi script**. |
 | Badge status LIVE tidak muncul / "Endpoint tidak tersedia" | `/api/live-status` butuh deploy **Vercel** (`api/live-status.js`) atau `npm run dev` (middleware Vite). Pada hosting statis murni endpoint `api/` tidak ada — deploy ulang ke Vercel, atau sementara pakai **Demo Mode**. |
 | Banyak error merah/warning di Console DevTools | Mayoritas berasal dari **iframe TikTok** (skrip `webmssdk`/`webapp-live-embed` di domain mereka). Aplikasi sudah mendelegasikan izin sensor (`accelerometer; gyroscope; magnetometer`) dan `unload` lewat atribut `allow` + header `Permissions-Policy` — sisa violation `unload` butuh header dari TikTok sendiri (`unload=self` di domain mereka) sehingga tak bisa dihapus dari sisi kita. Error **404 asset ber-hash lama** = sisa cache setelah deploy baru → sekali reload bersih (Ctrl/Cmd+Shift+R) hilang; header `Cache-Control: immutable` pada `/assets/*` mencegahnya berulang. Pesan **"Banner not shown: …preventDefault()"** bersifat informatif — itu tanda aplikasi mengambil alih prompt install (by design). |
 | Link pendek (`vt.tiktok.com/...`) → muncul "link pendek tidak bisa dibuka" | Link kemungkinan **kedaluwarsa / video dihapus / dibatasi wilayah** (TikTok me-redirect ke homepage). Fitur buka-otomatis butuh endpoint `/api/resolve` — otomatis aktif di Vercel & dev server; pada hosting statis murni endpoint ini tidak ada, jadi salin URL lengkap dari address bar browser. |

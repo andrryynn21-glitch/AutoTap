@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { randInt, randFloat } from '../lib/random.js';
+import { computeBeatDelay, microPauseExtra, microPauseEveryCount } from '../lib/rhythm.js';
 import { performTap } from '../lib/tapSimulator.js';
 
 const FIRST_TAP_DELAY_MS = 220;
@@ -47,18 +47,8 @@ export function useAutoTap({ settings, target, stageRef, onTap }) {
     [],
   );
 
-  /** Delay berikutnya: acak dalam rentang + humanize. */
-  const computeDelay = useCallback(() => {
-    const s = settingsRef.current;
-    const lo = Math.min(s.minDelayMs, s.maxDelayMs);
-    const hi = Math.max(s.minDelayMs, s.maxDelayMs);
-    let delay = randInt(lo, hi);
-    if (s.humanize) {
-      delay = Math.round(delay * randFloat(0.88, 1.18));
-      if (Math.random() < 0.06) delay += randInt(90, 420); // jeda "ragu" sesekali
-    }
-    return delay;
-  }, []);
+  /** Delay berikutnya: acak dalam rentang + humanize (logika di lib/rhythm.js). */
+  const computeDelay = useCallback(() => computeBeatDelay(settingsRef.current), []);
 
   const doOneTap = useCallback(() => {
     const stage = stageRef?.current;
@@ -93,10 +83,8 @@ export function useAutoTap({ settings, target, stageRef, onTap }) {
         let next = computeDelay();
         if (s.microPauseEnabled) {
           tapsSincePauseRef.current += 1;
-          if (tapsSincePauseRef.current >= Math.max(2, s.microPauseEvery)) {
-            const lo = Math.min(s.microPauseMinMs, s.microPauseMaxMs);
-            const hi = Math.max(s.microPauseMinMs, s.microPauseMaxMs);
-            next += randInt(lo, hi);
+          if (tapsSincePauseRef.current >= microPauseEveryCount(s)) {
+            next += microPauseExtra(s);
             tapsSincePauseRef.current = 0;
           }
         }
